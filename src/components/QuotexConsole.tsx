@@ -6,7 +6,11 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronDown,
-  AlertCircle
+  AlertCircle,
+  Percent,
+  DollarSign,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 
 interface QuotexConsoleProps {
@@ -28,25 +32,50 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
   const [investmentAmount, setInvestmentAmount] = useState<number>(100);
   const [investmentInputStr, setInvestmentInputStr] = useState<string>('100');
   const [isPercentMode, setIsPercentMode] = useState<boolean>(false);
-  const [percentValue, setPercentValue] = useState<number>(10); // 10% default when switched to %
-  const [durationSeconds, setDurationSeconds] = useState<number>(5); // 00:00:05 default
+  const [percentValue, setPercentValue] = useState<number>(5); // 5% default when switched to %
+  const [showPercentPicker, setShowPercentPicker] = useState<boolean>(false);
+
+  // Timer state: countdown seconds OR Real-Time clock mode
+  const [durationSeconds, setDurationSeconds] = useState<number>(30); // 30s default
+  const [timerMode, setTimerMode] = useState<'duration' | 'realtime'>('duration');
   const [showTimerPicker, setShowTimerPicker] = useState<boolean>(false);
+  const [realTimeClock, setRealTimeClock] = useState<string>('');
+
   const [pendingTrade, setPendingTrade] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const currentBalance = accountType === 'DEMO' ? demoBalance : realBalance;
   const payoutRate = activeAsset.payout;
 
-  // Keep effective dollar amount synced when in % mode
+  // Real-time system clock updater
+  useEffect(() => {
+    const updateClock = () => {
+      const now = new Date();
+      const hh = now.getHours().toString().padStart(2, '0');
+      const mm = now.getMinutes().toString().padStart(2, '0');
+      const ss = now.getSeconds().toString().padStart(2, '0');
+      setRealTimeClock(`${hh}:${mm}:${ss}`);
+    };
+    updateClock();
+    const interval = setInterval(updateClock, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Calculate current trade dollar amount
   const effectiveInvestment = isPercentMode
     ? Math.max(1, Number(((currentBalance * percentValue) / 100).toFixed(2)))
     : investmentAmount;
+
+  // Percentage of balance that this trade represents
+  const effectivePercentage = currentBalance > 0
+    ? Number(((effectiveInvestment / currentBalance) * 100).toFixed(1))
+    : 0;
 
   const totalPayout = Number(
     (effectiveInvestment + (effectiveInvestment * payoutRate) / 100).toFixed(2)
   );
 
-  // Auto-adjust investment if user switches to an account with lower positive balance
+  // Auto-adjust investment if balance drops below
   useEffect(() => {
     if (!isPercentMode && currentBalance >= 1 && investmentAmount > currentBalance) {
       const clamped = Math.max(1, Math.floor(currentBalance));
@@ -62,16 +91,22 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
   };
 
   const timerOptions = [
-    { label: '00:00:05', seconds: 5 },
-    { label: '00:00:10', seconds: 10 },
-    { label: '00:00:15', seconds: 15 },
-    { label: '00:00:30', seconds: 30 },
-    { label: '00:01:00', seconds: 60 },
-    { label: '00:02:00', seconds: 120 },
-    { label: '00:05:00', seconds: 300 }
+    { label: '00:00:05', seconds: 5, tag: '5s' },
+    { label: '00:00:15', seconds: 15, tag: '15s' },
+    { label: '00:00:30', seconds: 30, tag: '30s' },
+    { label: '00:01:00', seconds: 60, tag: '1m' },
+    { label: '00:02:00', seconds: 120, tag: '2m' },
+    { label: '00:05:00', seconds: 300, tag: '5m' }
   ];
 
+  const percentPresets = [1, 2, 5, 10, 15, 20, 25, 50, 100];
+
   const stepTimer = (dir: -1 | 1) => {
+    if (timerMode === 'realtime') {
+      // Step in realtime mode changes candle expiration target (+1 min or -1 min)
+      setDurationSeconds((s) => Math.max(15, Math.min(600, s + dir * 30)));
+      return;
+    }
     const steps = [5, 10, 15, 30, 60, 120, 180, 300];
     const idx = steps.indexOf(durationSeconds);
     if (idx !== -1) {
@@ -82,32 +117,26 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
     }
   };
 
-  // Smart step for - / + buttons
+  // Smart step for - / + buttons on investment
   const handleStepInvestment = (dir: -1 | 1) => {
     setErrorMessage(null);
     if (isPercentMode) {
-      const pSteps = [1, 2, 5, 10, 15, 25, 50, 100];
-      const curIdx = pSteps.indexOf(percentValue);
+      const curIdx = percentPresets.indexOf(percentValue);
       if (curIdx !== -1) {
-        const nextIdx = Math.max(0, Math.min(pSteps.length - 1, curIdx + dir));
-        setPercentValue(pSteps[nextIdx]);
+        const nextIdx = Math.max(0, Math.min(percentPresets.length - 1, curIdx + dir));
+        setPercentValue(percentPresets[nextIdx]);
       } else {
         setPercentValue((p) => Math.max(1, Math.min(100, p + dir * 5)));
       }
       return;
     }
 
-    let step = 100;
+    let step = 50;
     if (investmentAmount < 10) step = 1;
     else if (investmentAmount < 50) step = 5;
     else if (investmentAmount < 100) step = 10;
-    else if (investmentAmount < 500) step = 50;
-    else if (investmentAmount >= 5000) step = 500;
-
-    if (dir === -1 && investmentAmount <= 10) step = 1;
-    else if (dir === -1 && investmentAmount <= 50) step = 5;
-    else if (dir === -1 && investmentAmount <= 100) step = 10;
-    else if (dir === -1 && investmentAmount <= 500) step = 50;
+    else if (investmentAmount >= 500) step = 100;
+    else if (investmentAmount >= 2000) step = 500;
 
     const maxAllowed = currentBalance >= 1 ? Math.max(1, Math.floor(currentBalance)) : 100000;
     const nextVal = Math.max(1, Math.min(maxAllowed, investmentAmount + dir * step));
@@ -165,7 +194,6 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
       setInvestmentInputStr(tradeAmt.toString());
     }
 
-    // If investment exceeds current balance, automatically clamp to currentBalance so trade succeeds without error
     if (tradeAmt > currentBalance) {
       tradeAmt = Number(currentBalance.toFixed(2));
       if (!isPercentMode) {
@@ -180,6 +208,7 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
 
   const toggleInvestmentSwitch = () => {
     setIsPercentMode((prev) => !prev);
+    setShowPercentPicker((prev) => !prev);
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       try {
         navigator.vibrate(15);
@@ -217,7 +246,7 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
 
   return (
     <div className="bg-[#0b0e14] border-t border-[#1a2230] px-3 pt-2 pb-2 select-none relative z-20">
-      {/* Actionable alert toast if balance is $0.00 */}
+      {/* Alert toast if balance is $0.00 */}
       {errorMessage && (
         <div className="absolute -top-11 left-2 right-2 z-30 bg-[#181f2e] border border-rose-500/70 text-white text-xs px-3 py-1.5 rounded-xl flex items-center justify-between shadow-2xl animate-fadeIn">
           <div className="flex items-center gap-1.5 truncate">
@@ -291,13 +320,19 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
         </div>
       </div>
 
-      {/* Row 2: Two Side-by-Side Control Boxes: Timer & Investment */}
+      {/* Row 2: Two Side-by-Side Control Boxes: Timer (Countdown + Real Time) & Investment (Amount + Percentage Selector) */}
       <div className="grid grid-cols-2 gap-2.5 mb-2 relative">
-        {/* Box 1: Timer Picker with - / + and Dropdown */}
+        {/* Box 1: Timer Picker with Real-Time Clock & Duration Modes */}
         <div className="relative bg-[#0d1118] border border-[#273244] hover:border-[#384760] rounded-xl px-2 py-1.5 flex flex-col justify-between">
-          <span className="absolute -top-2 left-3 bg-[#0b0e14] px-1 text-[10px] font-bold text-slate-400 tracking-wider">
-            Timer
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 tracking-wider flex items-center gap-1">
+              <Clock className="w-2.5 h-2.5 text-cyan-400" />
+              <span>{timerMode === 'realtime' ? 'Real Time Clock' : 'Timer'}</span>
+            </span>
+            {timerMode === 'realtime' && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+            )}
+          </div>
 
           <div className="flex items-center justify-between mt-1">
             <button
@@ -310,10 +345,10 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
 
             <button
               onClick={() => setShowTimerPicker(!showTimerPicker)}
-              className="font-mono-num text-sm sm:text-base font-bold text-white tracking-wider px-1 py-0.5 hover:text-cyan-300 transition-colors cursor-pointer"
-              title="Select Timer"
+              className="font-mono-num text-sm sm:text-base font-bold text-white tracking-wider px-1 py-0.5 hover:text-cyan-300 transition-colors cursor-pointer text-center"
+              title="Select Timer & Real Time Mode"
             >
-              {formatTimerDisplay(durationSeconds)}
+              {timerMode === 'realtime' ? realTimeClock : formatTimerDisplay(durationSeconds)}
             </button>
 
             <button
@@ -325,32 +360,78 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
             </button>
           </div>
 
-          <div className="text-center -mt-0.5">
+          <div className="flex items-center justify-between text-[10px] font-bold -mt-0.5 pt-0.5">
+            <button
+              onClick={() => {
+                setTimerMode(timerMode === 'realtime' ? 'duration' : 'realtime');
+              }}
+              className={`uppercase tracking-wider transition-colors cursor-pointer ${
+                timerMode === 'realtime' ? 'text-emerald-400 font-extrabold' : 'text-slate-500 hover:text-cyan-400'
+              }`}
+              title="Switch to Real Time clock or standard countdown"
+            >
+              {timerMode === 'realtime' ? '● LIVE TIME' : 'TIME CLOCK'}
+            </button>
             <button
               onClick={() => setShowTimerPicker(!showTimerPicker)}
-              className="text-[10px] font-bold text-slate-500 hover:text-slate-300 uppercase tracking-wider py-0.5 cursor-pointer"
+              className="text-[#0284c7] hover:underline uppercase tracking-wider cursor-pointer"
             >
-              {durationSeconds} SEC
+              {durationSeconds}s
             </button>
           </div>
 
-          {/* Timer Dropdown menu */}
+          {/* Timer Dropdown menu with Real Time toggle & presets */}
           {showTimerPicker && (
             <>
               <div
                 className="fixed inset-0 z-30"
                 onClick={() => setShowTimerPicker(false)}
               />
-              <div className="absolute bottom-full left-0 mb-1.5 w-full bg-[#141b26] border border-[#263246] rounded-xl shadow-2xl p-2.5 z-40">
-                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-[#212c3f]">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">
-                    Trade Timer
+              <div className="absolute bottom-full left-0 mb-1.5 w-full bg-[#141b26] border border-[#263246] rounded-xl shadow-2xl p-2.5 z-40 animate-fadeIn">
+                <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[#212c3f]">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-cyan-400" />
+                    <span>Mode Selection</span>
                   </span>
                   <span className="text-[10px] font-mono text-cyan-400 font-bold">
-                    {formatTimerDisplay(durationSeconds)}
+                    {timerMode === 'realtime' ? realTimeClock : `${durationSeconds}s`}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-1.5">
+
+                {/* Real Time vs Countdown Selector Tabs */}
+                <div className="grid grid-cols-2 gap-1.5 mb-2.5 bg-[#0d121c] p-1 rounded-lg border border-[#212c3f]">
+                  <button
+                    onClick={() => {
+                      setTimerMode('duration');
+                    }}
+                    className={`py-1 rounded text-[11px] font-bold transition-all cursor-pointer ${
+                      timerMode === 'duration'
+                        ? 'bg-cyan-500 text-slate-950 shadow-md font-black'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Duration
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTimerMode('realtime');
+                    }}
+                    className={`py-1 rounded text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                      timerMode === 'realtime'
+                        ? 'bg-emerald-500 text-slate-950 shadow-md font-black'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-ping" />
+                    <span>Real Time</span>
+                  </button>
+                </div>
+
+                {/* Duration Presets */}
+                <span className="text-[9px] uppercase font-bold text-slate-500 block mb-1">
+                  Preset Expirations:
+                </span>
+                <div className="grid grid-cols-3 gap-1">
                   {timerOptions.map((opt) => (
                     <button
                       key={opt.seconds}
@@ -358,13 +439,13 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
                         setDurationSeconds(opt.seconds);
                         setShowTimerPicker(false);
                       }}
-                      className={`py-1.5 px-2 rounded-lg text-xs font-mono font-semibold transition-colors cursor-pointer ${
+                      className={`py-1.5 px-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer text-center ${
                         durationSeconds === opt.seconds
-                          ? 'bg-[#0284c7] text-white font-bold'
+                          ? 'bg-[#0284c7] text-white font-black'
                           : 'bg-[#192230] text-slate-300 hover:bg-[#202b3d]'
                       }`}
                     >
-                      {opt.label}
+                      {opt.tag}
                     </button>
                   ))}
                 </div>
@@ -373,11 +454,22 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
           )}
         </div>
 
-        {/* Box 2: Investment Directly Editable with Input Field and - / + */}
+        {/* Box 2: Investment Directly Editable with Input Field, % Display, and % Picker */}
         <div className="bg-[#0d1118] border border-[#273244] hover:border-[#384760] rounded-xl px-2 py-1.5 relative flex flex-col justify-between">
-          <span className="absolute -top-2 left-3 bg-[#0b0e14] px-1 text-[10px] font-bold text-slate-400 tracking-wider">
-            Investment
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-slate-400 tracking-wider flex items-center gap-1">
+              <DollarSign className="w-2.5 h-2.5 text-emerald-400" />
+              <span>Investment</span>
+            </span>
+            {/* Shows what % of current balance is being invested */}
+            <span
+              onClick={() => setShowPercentPicker(!showPercentPicker)}
+              className="text-[10px] font-mono-num font-bold px-1.5 py-0.2 rounded bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 hover:text-cyan-200 cursor-pointer transition-colors"
+              title="Click to view and choose percentage of balance"
+            >
+              {effectivePercentage}% of bal
+            </span>
+          </div>
 
           <div className="flex items-center justify-between mt-1">
             <button
@@ -413,21 +505,84 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
             </button>
           </div>
 
-          <div className="text-center -mt-0.5">
+          <div className="flex items-center justify-between text-[10px] font-bold -mt-0.5 pt-0.5">
             <button
               onClick={toggleInvestmentSwitch}
-              className="text-[10px] font-bold text-[#0284c7] hover:underline uppercase tracking-wider py-0.5 cursor-pointer active:opacity-75"
+              className="text-[#0284c7] hover:underline uppercase tracking-wider cursor-pointer active:opacity-75"
               title="Switch between $ and % of balance"
             >
-              SWITCH
+              {isPercentMode ? 'SWITCH TO $' : 'SWITCH TO %'}
+            </button>
+            <button
+              onClick={() => setShowPercentPicker(!showPercentPicker)}
+              className="text-amber-400 hover:text-amber-300 font-mono-num cursor-pointer"
+            >
+              ≈ ${effectiveInvestment.toFixed(0)}
             </button>
           </div>
+
+          {/* Percentage Presets Picker Dropdown */}
+          {showPercentPicker && (
+            <>
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setShowPercentPicker(false)}
+              />
+              <div className="absolute bottom-full right-0 mb-1.5 w-full bg-[#141b26] border border-[#263246] rounded-xl shadow-2xl p-2.5 z-40 animate-fadeIn">
+                <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-[#212c3f]">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">
+                    <Percent className="w-3 h-3 text-cyan-400" />
+                    <span>Invest % of Balance</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold">
+                    ${currentBalance.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-1 mb-2">
+                  {percentPresets.map((pct) => {
+                    const dollarVal = ((currentBalance * pct) / 100).toFixed(0);
+                    return (
+                      <button
+                        key={pct}
+                        onClick={() => {
+                          setIsPercentMode(true);
+                          setPercentValue(pct);
+                          setInvestmentAmount(Math.max(1, Number(((currentBalance * pct) / 100).toFixed(2))));
+                          setInvestmentInputStr(((currentBalance * pct) / 100).toFixed(0));
+                          setShowPercentPicker(false);
+                        }}
+                        className={`py-1.5 px-1 rounded-lg text-xs font-mono font-bold transition-colors cursor-pointer flex flex-col items-center ${
+                          isPercentMode && percentValue === pct
+                            ? 'bg-[#0284c7] text-white font-black'
+                            : 'bg-[#192230] text-slate-300 hover:bg-[#202b3d]'
+                        }`}
+                      >
+                        <span>{pct}%</span>
+                        <span className="text-[9px] text-slate-400 opacity-80">${dollarVal}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-1 border-t border-[#212c3f] flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400">Current Trade:</span>
+                  <span className="font-bold text-white font-mono-num">
+                    {effectivePercentage}% (${effectiveInvestment.toFixed(2)})
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {/* Row 3: Payout preview with dotted leader line */}
       <div className="flex items-center justify-between text-xs mb-2 px-1 font-mono-num">
-        <span className="text-slate-400 font-medium">Payout</span>
+        <span className="text-slate-400 font-medium flex items-center gap-1">
+          <span>Payout</span>
+          <span className="text-[10px] text-cyan-400 font-bold">({effectivePercentage}% Trade)</span>
+        </span>
         <div className="flex-1 mx-2 border-b border-dotted border-slate-700/80"></div>
         <span className="font-bold text-white text-sm tracking-wide">
           {totalPayout.toLocaleString('en-US', {
@@ -445,16 +600,26 @@ export const QuotexConsole: React.FC<QuotexConsoleProps> = ({ onOpenAssetModal }
           onClick={() => handleTrade('UP')}
           className="w-full bg-[#00c874] hover:bg-[#00e599] active:scale-[0.98] transition-all rounded-xl py-3 px-4 text-white font-black text-base flex items-center justify-between shadow-[0_4px_16px_rgba(0,200,116,0.3)] cursor-pointer"
         >
-          <span className="tracking-wide">Buy</span>
+          <div className="flex flex-col text-left">
+            <span className="tracking-wide leading-tight">Buy</span>
+            <span className="text-[10px] font-mono opacity-85 font-semibold">
+              +${((effectiveInvestment * payoutRate) / 100).toFixed(2)}
+            </span>
+          </div>
           <ArrowUp className="w-5 h-5 stroke-[3]" />
         </button>
 
         {/* Sell (Red Button) */}
         <button
           onClick={() => handleTrade('DOWN')}
-          className="w-full bg-[#ff3355] hover:bg-[#ff4d6b] active:scale-[0.98] transition-all rounded-xl py-3 px-4 text-white font-black text-base flex items-center justify-between shadow-[0_4px_16px_rgba(255,51,85,0.3)] cursor-pointer"
+          className="w-full bg-[#ff3b59] hover:bg-[#ff526d] active:scale-[0.98] transition-all rounded-xl py-3 px-4 text-white font-black text-base flex items-center justify-between shadow-[0_4px_16px_rgba(255,59,89,0.3)] cursor-pointer"
         >
-          <span className="tracking-wide">Sell</span>
+          <div className="flex flex-col text-left">
+            <span className="tracking-wide leading-tight">Sell</span>
+            <span className="text-[10px] font-mono opacity-85 font-semibold">
+              +${((effectiveInvestment * payoutRate) / 100).toFixed(2)}
+            </span>
+          </div>
           <ArrowDown className="w-5 h-5 stroke-[3]" />
         </button>
       </div>

@@ -25,7 +25,8 @@ import {
   EyeOff,
   Undo2,
   Trash2,
-  X
+  X,
+  GripHorizontal
 } from 'lucide-react';
 
 interface ChartCanvasProps {
@@ -92,6 +93,49 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
     initialPrice2: number;
   } | null>(null);
 
+  // Floating draggable toolbar position for Drawing Tools
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>({ x: 20, y: 14 });
+  const isDraggingToolbarRef = useRef(false);
+  const toolbarDragOffsetRef = useRef<{ offsetX: number; offsetY: number }>({ offsetX: 0, offsetY: 0 });
+
+  const handleToolbarTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+    e.stopPropagation();
+    isDraggingToolbarRef.current = true;
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : (e as React.MouseEvent).clientY;
+    toolbarDragOffsetRef.current = {
+      offsetX: clientX - toolbarPos.x,
+      offsetY: clientY - toolbarPos.y
+    };
+  };
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent | TouchEvent) => {
+      if (!isDraggingToolbarRef.current) return;
+      const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX;
+      const clientY = 'touches' in e ? e.touches[0].clientY : (e as MouseEvent).clientY;
+      const newX = Math.max(10, Math.min(window.innerWidth - 220, clientX - toolbarDragOffsetRef.current.offsetX));
+      const newY = Math.max(10, Math.min(window.innerHeight - 80, clientY - toolbarDragOffsetRef.current.offsetY));
+      setToolbarPos({ x: newX, y: newY });
+    };
+
+    const handleEnd = () => {
+      isDraggingToolbarRef.current = false;
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleMove);
+    window.addEventListener('touchend', handleEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleEnd);
+    };
+  }, [toolbarPos]);
+
   // Track exact pixel coordinates of the live candle's close dot so RESULT (P/L) anchors directly to the candle
   const [liveCandleAnchor, setLiveCandleAnchor] = useState<{
     x: number;
@@ -109,9 +153,9 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
     return () => clearTimeout(timer);
   }, [lastClosedTrade, clearLastClosedTrade]);
 
-  // Interactive Pen & Rectangle Drawing State
+  // Interactive Pen & Drawing State
   const [draftLine, setDraftLine] = useState<{
-    type: 'trendline' | 'freehand' | 'horizontal' | 'rectangle';
+    type: 'trendline' | 'freehand' | 'horizontal' | 'rectangle' | 'vertical' | 'ray' | 'fibonacci' | 'channel';
     time1: number;
     price1: number;
     time2: number;
@@ -605,14 +649,15 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
       ctx.fillText(formatPrice(lowestActual, activeAsset.decimalPlaces), minX, minY + 20);
     }
 
-    // 8. User-Drawn Lines (Horizontal, Trendline, Freehand Pen, Rectangle / Square Zone)
+    // 8. User-Drawn Lines (Horizontal, Trendline, Ray, Vertical, Freehand Pen, Square, Fibonacci)
     const renderLineItem = (
       line: {
-        type: 'horizontal' | 'trendline' | 'freehand' | 'rectangle';
+        type: 'horizontal' | 'vertical' | 'trendline' | 'ray' | 'freehand' | 'rectangle' | 'fibonacci' | 'channel';
         price1: number;
         time1?: number;
         price2?: number;
         time2?: number;
+        price3?: number;
         points?: { time: number; price: number }[];
         color: string;
         label?: string;
@@ -714,6 +759,102 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
         ctx.textAlign = 'center';
         ctx.fillText(line.label || 'ZONE', left + 25, top + 13);
         ctx.restore();
+      } else if (line.type === 'vertical') {
+        const x = line.time1 !== undefined ? getXFromTime(line.time1) : chartWidth / 2;
+        if (x >= 0 && x <= chartWidth) {
+          ctx.save();
+          ctx.strokeStyle = line.color || '#eab308';
+          ctx.lineWidth = 1.8;
+          ctx.setLineDash(isDraft ? [4, 3] : [5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x, topPadding);
+          ctx.lineTo(x, topPadding + chartHeight);
+          ctx.stroke();
+
+          // Time badge at bottom
+          const date = new Date(line.time1 || Date.now());
+          const timeStr = `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+          ctx.fillStyle = line.color || '#eab308';
+          ctx.beginPath();
+          ctx.roundRect(x - 22, topPadding + chartHeight - 18, 44, 16, 3);
+          ctx.fill();
+          ctx.fillStyle = '#0a0d14';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(timeStr, x, topPadding + chartHeight - 6);
+          ctx.restore();
+        }
+      } else if (line.type === 'ray' && line.price2 !== undefined) {
+        const y1 = getY(line.price1);
+        const y2 = getY(line.price2);
+        const x1 = line.time1 !== undefined ? getXFromTime(line.time1) : candleWidth * 4;
+        const x2 = line.time2 !== undefined ? getXFromTime(line.time2) : chartWidth - candleWidth * 4;
+
+        ctx.save();
+        ctx.strokeStyle = line.color || '#eab308';
+        ctx.lineWidth = 2.2;
+        ctx.setLineDash(isDraft ? [4, 3] : []);
+
+        // Ray extends through (x2, y2) to the edge of the screen
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const slope = Math.abs(dx) > 0.001 ? dy / dx : 0;
+        const targetX = dx >= 0 ? chartWidth + 50 : -50;
+        const targetY = y1 + slope * (targetX - x1);
+
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(targetX, targetY);
+        ctx.stroke();
+
+        ctx.fillStyle = line.color || '#eab308';
+        ctx.beginPath();
+        ctx.arc(x1, y1, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x2, y2, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      } else if (line.type === 'fibonacci' && line.price2 !== undefined) {
+        const y1 = getY(line.price1);
+        const y2 = getY(line.price2);
+        const x1 = line.time1 !== undefined ? getXFromTime(line.time1) : 40;
+        const x2 = line.time2 !== undefined ? getXFromTime(line.time2) : chartWidth - 40;
+        const startX = Math.min(x1, x2);
+        const endX = Math.max(chartWidth - 10, Math.max(x1, x2));
+
+        const fibLevels = [
+          { level: 0, label: '0.0%' },
+          { level: 0.236, label: '23.6%' },
+          { level: 0.382, label: '38.2%' },
+          { level: 0.5, label: '50.0%' },
+          { level: 0.618, label: '61.8%' },
+          { level: 0.786, label: '78.6%' },
+          { level: 1.0, label: '100.0%' }
+        ];
+
+        ctx.save();
+        fibLevels.forEach((fib, idx) => {
+          const currentFibPrice = line.price1 + (line.price2! - line.price1) * fib.level;
+          const currentFibY = getY(currentFibPrice);
+
+          ctx.strokeStyle = idx === 0 || idx === 6 ? '#00e599' : idx === 3 ? '#eab308' : '#38bdf8';
+          ctx.lineWidth = 1.3;
+          ctx.setLineDash(idx === 3 ? [] : [4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(startX, currentFibY);
+          ctx.lineTo(endX, currentFibY);
+          ctx.stroke();
+
+          // Level badge
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(endX - 54, currentFibY - 8, 50, 16);
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = 'bold 9px "JetBrains Mono", monospace';
+          ctx.textAlign = 'right';
+          ctx.fillText(`${fib.label}`, endX - 8, currentFibY + 4);
+        });
+        ctx.restore();
       } else if (line.type === 'freehand' && line.points && line.points.length > 1) {
         ctx.save();
         ctx.strokeStyle = line.color || '#eab308';
@@ -738,7 +879,7 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
       renderLineItem({ ...draftLine, color: drawingColor }, true);
     }
 
-    // 9. Active Trades Strike Lines & Anchored Candle Markers (Never disappear when panning)
+    // 9. Active Trades Strike Lines & Anchored Candle Markers (Never disappear when panning like Quotex)
     activeTrades.forEach((trade) => {
       if (trade.assetId !== activeAsset.id) return;
       const tradeY = getY(trade.entryPrice);
@@ -750,7 +891,7 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
       const tradeEndX = getXFromTime(trade.closeTime);
 
       ctx.save();
-      // Persistent strike line spanning full chart width
+      // Persistent strike line spanning entire visible chart width
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.6;
       ctx.setLineDash([5, 4]);
@@ -810,20 +951,27 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
       ctx.textAlign = 'center';
       ctx.fillText(`${isUp ? '▲' : '▼'} $${trade.amount} (${remSec}s)`, 56, tradeY + 4);
 
-      // When user scrolled/panned back into history: prominent badge at the right edge pointing forward!
-      if (panOffset > 0 && (tradeX > chartWidth - 20 || tradeEndX > chartWidth)) {
+      // QUOTEX STYLE: When user pans backwards into past candles, future active trades ALWAYS stay visible!
+      // Shows sticky forward trade arrow badge at right edge with glowing pulse
+      if (panOffset > 0 || tradeEndX > chartWidth || tradeX > chartWidth - 30) {
         ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.roundRect(chartWidth - 96, tradeY - 11, 92, 22, 5);
+        ctx.roundRect(chartWidth - 98, tradeY - 12, 94, 24, 6);
         ctx.fill();
         ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
         ctx.stroke();
+
+        // Pulsing dot indicator
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(chartWidth - 88, tradeY, 3.5, 0, Math.PI * 2);
+        ctx.fill();
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 10px "JetBrains Mono", monospace';
         ctx.textAlign = 'center';
-        ctx.fillText(`${isUp ? '▲' : '▼'} $${trade.amount} (${remSec}s) ▶`, chartWidth - 50, tradeY + 4);
+        ctx.fillText(`${isUp ? '▲' : '▼'} $${trade.amount} (${remSec}s) ➔`, chartWidth - 44, tradeY + 4);
       }
       ctx.restore();
     });
@@ -1110,10 +1258,46 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
         return;
       }
 
+      if (activeDrawingTool === 'vertical') {
+        addDrawnLine({
+          type: 'vertical',
+          time1: coords.time,
+          price1: coords.price,
+          color: drawingColor
+        });
+        return;
+      }
+
       if (activeDrawingTool === 'rectangle') {
         isDrawingRef.current = true;
         setDraftLine({
           type: 'rectangle',
+          time1: coords.time,
+          price1: coords.price,
+          time2: coords.time,
+          price2: coords.price,
+          points: []
+        });
+        return;
+      }
+
+      if (activeDrawingTool === 'ray') {
+        isDrawingRef.current = true;
+        setDraftLine({
+          type: 'ray',
+          time1: coords.time,
+          price1: coords.price,
+          time2: coords.time,
+          price2: coords.price,
+          points: []
+        });
+        return;
+      }
+
+      if (activeDrawingTool === 'fibonacci') {
+        isDrawingRef.current = true;
+        setDraftLine({
+          type: 'fibonacci',
           time1: coords.time,
           price1: coords.price,
           time2: coords.time,
@@ -1245,6 +1429,34 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
           color: drawingColor,
           label: 'ZONE'
         });
+      } else if (draftLine.type === 'ray') {
+        const timeSpan =
+          Math.abs(draftLine.time2 - draftLine.time1) < 1000
+            ? 60 * 1000 * 6
+            : draftLine.time2 - draftLine.time1;
+        addDrawnLine({
+          type: 'ray',
+          time1: draftLine.time1,
+          price1: draftLine.price1,
+          time2: draftLine.time1 + timeSpan,
+          price2: draftLine.price2,
+          color: drawingColor,
+          label: 'RAY'
+        });
+      } else if (draftLine.type === 'fibonacci') {
+        const timeSpan =
+          Math.abs(draftLine.time2 - draftLine.time1) < 1000
+            ? 60 * 1000 * 10
+            : draftLine.time2 - draftLine.time1;
+        addDrawnLine({
+          type: 'fibonacci',
+          time1: draftLine.time1,
+          price1: draftLine.price1,
+          time2: draftLine.time1 + timeSpan,
+          price2: draftLine.price2,
+          color: drawingColor,
+          label: 'FIBONACCI'
+        });
       } else if (draftLine.type === 'freehand' && draftLine.points && draftLine.points.length > 1) {
         addDrawnLine({
           type: 'freehand',
@@ -1311,10 +1523,46 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
           return;
         }
 
+        if (activeDrawingTool === 'vertical') {
+          addDrawnLine({
+            type: 'vertical',
+            time1: coords.time,
+            price1: coords.price,
+            color: drawingColor
+          });
+          return;
+        }
+
         if (activeDrawingTool === 'rectangle') {
           isDrawingRef.current = true;
           setDraftLine({
             type: 'rectangle',
+            time1: coords.time,
+            price1: coords.price,
+            time2: coords.time,
+            price2: coords.price,
+            points: []
+          });
+          return;
+        }
+
+        if (activeDrawingTool === 'ray') {
+          isDrawingRef.current = true;
+          setDraftLine({
+            type: 'ray',
+            time1: coords.time,
+            price1: coords.price,
+            time2: coords.time,
+            price2: coords.price,
+            points: []
+          });
+          return;
+        }
+
+        if (activeDrawingTool === 'fibonacci') {
+          isDrawingRef.current = true;
+          setDraftLine({
+            type: 'fibonacci',
             time1: coords.time,
             price1: coords.price,
             time2: coords.time,
@@ -1651,10 +1899,27 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
         </div>
       )}
 
-      {/* Interactive Pen Tool Floating Toolbar (When Pen Tool is Active) */}
+      {/* Interactive Pen Tool Floating & Draggable Toolbar (Float anywhere on screen) */}
       {activeDrawingTool !== 'none' && (
-        <div className="absolute top-3.5 left-15 right-3 z-20 flex flex-wrap items-center justify-between gap-2 bg-[#121926]/95 backdrop-blur-md border border-amber-400/50 rounded-xl px-2.5 py-1.5 shadow-2xl">
-          <div className="flex items-center gap-1">
+        <div
+          style={{
+            left: `${toolbarPos.x}px`,
+            top: `${toolbarPos.y}px`
+          }}
+          className="absolute z-40 flex flex-wrap items-center gap-1.5 bg-[#101622]/95 backdrop-blur-md border border-amber-400/60 rounded-xl px-2.5 py-1.5 shadow-2xl max-w-[94vw]"
+        >
+          {/* Draggable Handle */}
+          <div
+            onMouseDown={handleToolbarTouchStart}
+            onTouchStart={handleToolbarTouchStart}
+            className="cursor-grab active:cursor-grabbing p-1 text-amber-400/80 hover:text-amber-300 flex items-center justify-center shrink-0"
+            title="Drag toolbar anywhere"
+          >
+            <GripHorizontal className="w-4 h-4" />
+          </div>
+
+          {/* Tool Buttons */}
+          <div className="flex items-center gap-1 flex-wrap">
             <button
               onClick={() => setActiveDrawingTool('trendline')}
               className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
@@ -1666,14 +1931,14 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
               Line
             </button>
             <button
-              onClick={() => setActiveDrawingTool('freehand')}
+              onClick={() => setActiveDrawingTool('ray')}
               className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
-                activeDrawingTool === 'freehand'
+                activeDrawingTool === 'ray'
                   ? 'bg-amber-400 text-slate-950 font-black'
                   : 'bg-[#1c2638] text-slate-300 hover:text-white'
               }`}
             >
-              Pen
+              Ray
             </button>
             <button
               onClick={() => setActiveDrawingTool('horizontal')}
@@ -1684,6 +1949,26 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
               }`}
             >
               Level
+            </button>
+            <button
+              onClick={() => setActiveDrawingTool('vertical')}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
+                activeDrawingTool === 'vertical'
+                  ? 'bg-amber-400 text-slate-950 font-black'
+                  : 'bg-[#1c2638] text-slate-300 hover:text-white'
+              }`}
+            >
+              Vertical
+            </button>
+            <button
+              onClick={() => setActiveDrawingTool('freehand')}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
+                activeDrawingTool === 'freehand'
+                  ? 'bg-amber-400 text-slate-950 font-black'
+                  : 'bg-[#1c2638] text-slate-300 hover:text-white'
+              }`}
+            >
+              Pen
             </button>
             <button
               onClick={() => setActiveDrawingTool('rectangle')}
@@ -1697,14 +1982,25 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
               <Square className="w-3 h-3" />
               <span>Square</span>
             </button>
+            <button
+              onClick={() => setActiveDrawingTool('fibonacci')}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold cursor-pointer transition-colors ${
+                activeDrawingTool === 'fibonacci'
+                  ? 'bg-amber-400 text-slate-950 font-black'
+                  : 'bg-[#1c2638] text-slate-300 hover:text-white'
+              }`}
+            >
+              Fibonacci
+            </button>
           </div>
 
+          {/* Color palette */}
           <div className="flex items-center gap-1">
             {penColors.map((c) => (
               <button
                 key={c}
                 onClick={() => setDrawingColor(c)}
-                className={`w-4 h-4 rounded-full border cursor-pointer transition-transform ${
+                className={`w-3.5 h-3.5 rounded-full border cursor-pointer transition-transform ${
                   drawingColor === c ? 'border-white scale-125' : 'border-transparent opacity-75'
                 }`}
                 style={{ backgroundColor: c }}
@@ -1712,6 +2008,7 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
             ))}
           </div>
 
+          {/* Actions */}
           <div className="flex items-center gap-1">
             {drawnLines.length > 0 && (
               <>
@@ -1797,20 +2094,6 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
             1:1
           </button>
         </div>
-      )}
-
-      {/* Return to Live Chart floating button when Panned Back into History */}
-      {panOffset > 0 && (
-        <button
-          onClick={() => setPanOffset(0)}
-          className="absolute right-14 bottom-13 z-20 flex items-center gap-2 px-3 py-1.5 rounded-full bg-cyan-600/95 hover:bg-cyan-500 border border-cyan-400/60 text-white text-xs font-black shadow-2xl transition-all active:scale-95 cursor-pointer backdrop-blur-md animate-fadeIn"
-          title="Return to Live Current Candle"
-        >
-          {activeTrades.length > 0 && (
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-          )}
-          <span>{activeTrades.length > 0 ? `Active Trades (${activeTrades.length}) ➔` : 'Jump to Live ➔'}</span>
-        </button>
       )}
 
       {/* Mini Asset Switching Loading Overlay */}

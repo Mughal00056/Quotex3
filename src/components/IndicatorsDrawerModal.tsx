@@ -495,6 +495,59 @@ export const IndicatorsDrawerModal: React.FC<IndicatorsDrawerModalProps> = ({
                   <span>+ Trend Line</span>
                 </button>
 
+                <button
+                  onClick={() => {
+                    const now = Date.now();
+                    addDrawnLine({
+                      type: 'vertical',
+                      price1: activeAsset.currentPrice,
+                      time1: now,
+                      color: selectedColor,
+                      label: 'VERTICAL'
+                    });
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-[#1a2436] hover:bg-[#233149] border border-[#2d3d57] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+                >
+                  <Plus className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>+ Vertical Line</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const price1 = Number((activeAsset.currentPrice - activeAsset.volatility * 0.5).toFixed(activeAsset.decimalPlaces));
+                    const price2 = Number((activeAsset.currentPrice + activeAsset.volatility * 1.5).toFixed(activeAsset.decimalPlaces));
+                    addDrawnLine({
+                      type: 'ray',
+                      price1,
+                      price2,
+                      color: selectedColor,
+                      label: 'RAY'
+                    });
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-[#1a2436] hover:bg-[#233149] border border-[#2d3d57] text-white font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+                >
+                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>+ Ray Line</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const price1 = Number((activeAsset.currentPrice - activeAsset.volatility * 2).toFixed(activeAsset.decimalPlaces));
+                    const price2 = Number((activeAsset.currentPrice + activeAsset.volatility * 2).toFixed(activeAsset.decimalPlaces));
+                    addDrawnLine({
+                      type: 'fibonacci',
+                      price1,
+                      price2,
+                      color: selectedColor,
+                      label: 'FIBONACCI'
+                    });
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-[#1e1b36] hover:bg-[#282449] border border-[#6366f1]/40 text-[#a5b4fc] font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer shadow-md"
+                >
+                  <Plus className="w-3.5 h-3.5 text-indigo-400" />
+                  <span>+ Fibonacci Retracement</span>
+                </button>
+
                 {/* Rectangle / Square Zone Button */}
                 <button
                   onClick={() => {

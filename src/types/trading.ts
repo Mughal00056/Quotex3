@@ -154,15 +154,25 @@ export interface IndicatorSettings {
   parabolicSar: boolean;
 }
 
-export type DrawingToolType = 'none' | 'horizontal' | 'trendline' | 'freehand' | 'rectangle';
+export type DrawingToolType = 
+  | 'none' 
+  | 'horizontal' 
+  | 'vertical' 
+  | 'trendline' 
+  | 'ray' 
+  | 'freehand' 
+  | 'rectangle' 
+  | 'fibonacci' 
+  | 'channel';
 
 export interface DrawnLine {
   id: string;
-  type: 'horizontal' | 'trendline' | 'freehand' | 'rectangle';
+  type: 'horizontal' | 'vertical' | 'trendline' | 'ray' | 'freehand' | 'rectangle' | 'fibonacci' | 'channel';
   price1: number;
   time1?: number;
   price2?: number;
   time2?: number;
+  price3?: number; // for channel
   points?: { time: number; price: number }[];
   color: string;
   label?: string;

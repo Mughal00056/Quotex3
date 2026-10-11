@@ -181,7 +181,7 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
     localStorage.setItem(STORAGE_KEYS.CANDLE_COLOR_SCHEME, scheme);
   }, []);
   const [indicators, setIndicators] = useState<IndicatorSettings>({
-    sma: true,
+    sma: false,
     smaPeriod: 10,
     ema: false,
     emaPeriod: 21,

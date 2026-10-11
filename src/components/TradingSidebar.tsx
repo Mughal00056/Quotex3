@@ -29,13 +29,24 @@ export const TradingSidebar: React.FC<TradingSidebarProps> = ({ onOpenHistory })
   } = useTrading();
 
   const [investmentAmount, setInvestmentAmount] = useState<number>(50);
+  const [expirationMode, setExpirationMode] = useState<'time' | 'timer'>('timer');
   const [durationSeconds, setDurationSeconds] = useState<number>(30); // 30s default
+  const [timeOffsetMinutes, setTimeOffsetMinutes] = useState<number>(1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const currentBalance = accountType === 'DEMO' ? demoBalance : realBalance;
   const payoutRate = activeAsset.payout;
   const projectedProfit = Number(((investmentAmount * payoutRate) / 100).toFixed(2));
   const totalPayout = Number((investmentAmount + projectedProfit).toFixed(2));
+
+  const now = Date.now();
+  const nextMinute = Math.ceil(now / 60000) * 60000;
+  const targetTimestamp = nextMinute + (timeOffsetMinutes - 1) * 60000;
+  const targetDate = new Date(targetTimestamp);
+  const targetTimeString = `${targetDate.getHours().toString().padStart(2, '0')}:${targetDate
+    .getMinutes()
+    .toString()
+    .padStart(2, '0')}:00`;
 
   const durationOptions = [
     { label: '5s', seconds: 5 },
@@ -44,6 +55,15 @@ export const TradingSidebar: React.FC<TradingSidebarProps> = ({ onOpenHistory })
     { label: '1m', seconds: 60 },
     { label: '2m', seconds: 120 },
     { label: '5m', seconds: 300 }
+  ];
+
+  const timeOptions = [
+    { label: '+1m', offset: 1 },
+    { label: '+2m', offset: 2 },
+    { label: '+3m', offset: 3 },
+    { label: '+5m', offset: 5 },
+    { label: '+10m', offset: 10 },
+    { label: '+15m', offset: 15 }
   ];
 
   const quickAmounts = [10, 25, 50, 100, 250, 500];
@@ -59,7 +79,11 @@ export const TradingSidebar: React.FC<TradingSidebarProps> = ({ onOpenHistory })
       return;
     }
     setErrorMessage(null);
-    const success = placeTrade(direction, investmentAmount, durationSeconds);
+    const effectiveDuration =
+      expirationMode === 'time'
+        ? Math.max(5, Math.ceil((targetTimestamp - Date.now()) / 1000))
+        : durationSeconds;
+    const success = placeTrade(direction, investmentAmount, effectiveDuration);
     if (!success) {
       setErrorMessage('Failed to place trade. Check your balance.');
     }
@@ -77,45 +101,98 @@ export const TradingSidebar: React.FC<TradingSidebarProps> = ({ onOpenHistory })
           </div>
         )}
 
-        {/* 1. Time / Expiration Duration Picker */}
+        {/* 1. Time / Expiration Duration Picker with TIME and TIMER tabs */}
         <div className="bg-[#171f2e] border border-[#232f44] rounded-xl p-3">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <div className="flex items-center gap-1.5 font-medium">
-              <Clock className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Time Expiration</span>
-            </div>
-            <span className="font-mono-num text-cyan-300 font-semibold">{durationSeconds}s</span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-1.5 mb-2.5">
-            {durationOptions.map((opt) => (
+          <div className="flex items-center justify-between text-xs text-slate-400 mb-2.5">
+            {/* TIME vs TIMER switch */}
+            <div className="flex items-center gap-1 bg-[#101520] p-0.5 rounded-lg border border-[#232f44]">
               <button
-                key={opt.seconds}
-                onClick={() => setDurationSeconds(opt.seconds)}
-                className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
-                  durationSeconds === opt.seconds
-                    ? 'bg-cyan-500 text-slate-950 shadow-md font-bold'
-                    : 'bg-[#1e273a] text-slate-300 hover:bg-[#28344c] hover:text-white'
+                onClick={() => setExpirationMode('time')}
+                className={`px-2.5 py-1 rounded text-xs font-black uppercase transition-all cursor-pointer ${
+                  expirationMode === 'time'
+                    ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
                 }`}
               >
-                {opt.label}
+                Time
               </button>
-            ))}
+              <button
+                onClick={() => setExpirationMode('timer')}
+                className={`px-2.5 py-1 rounded text-xs font-black uppercase transition-all cursor-pointer ${
+                  expirationMode === 'timer'
+                    ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                Timer
+              </button>
+            </div>
+            <span className="font-mono-num text-cyan-300 font-bold text-xs">
+              {expirationMode === 'time' ? targetTimeString : `${durationSeconds}s`}
+            </span>
           </div>
+
+          {expirationMode === 'timer' ? (
+            <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+              {durationOptions.map((opt) => (
+                <button
+                  key={opt.seconds}
+                  onClick={() => setDurationSeconds(opt.seconds)}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                    durationSeconds === opt.seconds
+                      ? 'bg-cyan-500 text-slate-950 shadow-md font-bold'
+                      : 'bg-[#1e273a] text-slate-300 hover:bg-[#28344c] hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-1.5 mb-2.5">
+              {timeOptions.map((opt) => (
+                <button
+                  key={opt.offset}
+                  onClick={() => setTimeOffsetMinutes(opt.offset)}
+                  className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                    timeOffsetMinutes === opt.offset
+                      ? 'bg-cyan-500 text-slate-950 shadow-md font-bold'
+                      : 'bg-[#1e273a] text-slate-300 hover:bg-[#28344c] hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="flex items-center justify-between gap-2 pt-1 border-t border-[#232f44]">
             <button
-              onClick={() => setDurationSeconds((s) => Math.max(5, s - 5))}
+              onClick={() => {
+                if (expirationMode === 'time') {
+                  setTimeOffsetMinutes((m) => Math.max(1, m - 1));
+                } else {
+                  setDurationSeconds((s) => Math.max(5, s - 5));
+                }
+              }}
               className="p-1 rounded bg-[#202b3d] hover:bg-[#2a384f] text-slate-300 transition-colors"
-              title="Minus 5s"
+              title="Decrease"
             >
               <Minus className="w-3.5 h-3.5" />
             </button>
-            <span className="text-xs text-slate-400">Duration: {durationSeconds} seconds</span>
+            <span className="text-xs text-slate-400">
+              {expirationMode === 'time' ? `Target: ${targetTimeString}` : `Duration: ${durationSeconds}s`}
+            </span>
             <button
-              onClick={() => setDurationSeconds((s) => s + 5)}
+              onClick={() => {
+                if (expirationMode === 'time') {
+                  setTimeOffsetMinutes((m) => Math.min(60, m + 1));
+                } else {
+                  setDurationSeconds((s) => s + 5);
+                }
+              }}
               className="p-1 rounded bg-[#202b3d] hover:bg-[#2a384f] text-slate-300 transition-colors"
-              title="Plus 5s"
+              title="Increase"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>

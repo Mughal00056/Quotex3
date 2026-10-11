@@ -10,7 +10,10 @@ import {
   Volume2,
   VolumeX,
   Sliders,
-  Palette
+  Palette,
+  Image as ImageIcon,
+  Link as LinkIcon,
+  RotateCcw
 } from 'lucide-react';
 import { ChartType, CANDLE_COLOR_SCHEMES, CandleColorScheme } from '../types/trading';
 
@@ -34,7 +37,11 @@ export const ChartSettingsModal: React.FC<ChartSettingsModalProps> = ({
     soundEnabled,
     setSoundEnabled,
     marketBehaviorMode,
-    setMarketBehaviorMode
+    setMarketBehaviorMode,
+    logoImageUrl,
+    setLogoImageUrl,
+    backgroundImageUrl,
+    setBackgroundImageUrl
   } = useTrading();
 
   if (!isOpen) return null;
@@ -254,6 +261,128 @@ export const ChartSettingsModal: React.FC<ChartSettingsModalProps> = ({
                   Realistic trading behavior where trades naturally both win and lose.
                 </div>
               </button>
+            </div>
+          </div>
+
+          {/* Custom Branding & Images (Logo URL & Background URL as requested) */}
+          <div className="bg-[#151d2a] border border-[#24334a] rounded-xl p-3.5 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                <ImageIcon className="w-4 h-4 text-cyan-400" />
+                <span>Custom Logo & Background URL</span>
+              </span>
+              <span className="text-[10px] text-cyan-400 font-mono font-bold">Image URL</span>
+            </div>
+
+            {/* 1. Logo Image URL */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                Logo Image URL:
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  type="url"
+                  placeholder="Paste direct logo image URL..."
+                  value={logoImageUrl}
+                  onChange={(e) => setLogoImageUrl(e.target.value)}
+                  className="flex-1 bg-[#0d121c] border border-[#25334a] rounded-lg px-2.5 py-1.5 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                />
+                {logoImageUrl && (
+                  <button
+                    onClick={() => setLogoImageUrl('')}
+                    className="px-2 py-1 rounded bg-[#202b3d] hover:bg-rose-900/50 text-slate-300 hover:text-rose-200 text-xs font-bold transition-colors cursor-pointer"
+                    title="Clear logo URL"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {logoImageUrl && (
+                <div className="mt-1.5 flex items-center gap-2 bg-[#0d121c] p-1.5 rounded-lg border border-[#222e42]">
+                  <img
+                    src={logoImageUrl}
+                    alt="Logo Preview"
+                    className="w-7 h-7 object-contain rounded bg-[#162030]"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                  <span className="text-[10px] text-slate-400 truncate">Logo active across app</span>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Background Image URL */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-300 block mb-1">
+                Chart Background Image URL:
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  type="url"
+                  placeholder="Paste direct wallpaper/background image URL..."
+                  value={backgroundImageUrl}
+                  onChange={(e) => setBackgroundImageUrl(e.target.value)}
+                  className="flex-1 bg-[#0d121c] border border-[#25334a] rounded-lg px-2.5 py-1.5 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                />
+                {backgroundImageUrl && (
+                  <button
+                    onClick={() => setBackgroundImageUrl('')}
+                    className="px-2 py-1 rounded bg-[#202b3d] hover:bg-rose-900/50 text-slate-300 hover:text-rose-200 text-xs font-bold transition-colors cursor-pointer"
+                    title="Clear background URL"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Preset Wallpapers */}
+              <div className="mt-2 flex flex-wrap gap-1">
+                <button
+                  onClick={() => setBackgroundImageUrl('')}
+                  className={`text-[10px] px-2 py-1 rounded-md border font-bold transition-colors cursor-pointer ${
+                    !backgroundImageUrl
+                      ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300'
+                      : 'bg-[#0d121c] border-[#222e40] text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Dark Clean
+                </button>
+                <button
+                  onClick={() =>
+                    setBackgroundImageUrl(
+                      'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200&auto=format&fit=crop&q=80'
+                    )
+                  }
+                  className="text-[10px] px-2 py-1 rounded-md bg-[#0d121c] border border-[#222e40] text-slate-400 hover:text-white hover:border-cyan-400 font-bold transition-colors cursor-pointer"
+                >
+                  Trading Grid
+                </button>
+                <button
+                  onClick={() =>
+                    setBackgroundImageUrl(
+                      'https://images.unsplash.com/photo-1642543492481-44e81e3914a7?w=1200&auto=format&fit=crop&q=80'
+                    )
+                  }
+                  className="text-[10px] px-2 py-1 rounded-md bg-[#0d121c] border border-[#222e40] text-slate-400 hover:text-white hover:border-cyan-400 font-bold transition-colors cursor-pointer"
+                >
+                  Neon Cyber
+                </button>
+              </div>
+
+              {backgroundImageUrl && (
+                <div className="mt-1.5 flex items-center gap-2 bg-[#0d121c] p-1.5 rounded-lg border border-[#222e42]">
+                  <img
+                    src={backgroundImageUrl}
+                    alt="Background Preview"
+                    className="w-12 h-7 object-cover rounded bg-[#162030]"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                  <span className="text-[10px] text-slate-400 truncate">Background applied to chart</span>
+                </div>
+              )}
             </div>
           </div>
 

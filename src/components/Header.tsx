@@ -39,7 +39,8 @@ export const Header: React.FC<HeaderProps> = ({
     setActiveAsset,
     isOnlineMode,
     setIsOnlineMode,
-    marketBehaviorMode
+    marketBehaviorMode,
+    logoImageUrl
   } = useTrading();
 
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
@@ -53,14 +54,25 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-3">
         {/* Quotex Brand Logo */}
         <div className="flex items-center gap-2 cursor-pointer pr-2 border-r border-[#1b2332]">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#00e599] to-[#00b4d8] flex items-center justify-center shadow-[0_0_15px_rgba(0,229,153,0.35)]">
-            <svg
-              className="w-5 h-5 text-slate-950 font-black fill-current"
-              viewBox="0 0 24 24"
-            >
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
-          </div>
+          {logoImageUrl ? (
+            <img
+              src={logoImageUrl}
+              alt="Logo"
+              className="w-8 h-8 rounded-lg object-contain bg-[#111722] border border-[#233146]"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#00e599] to-[#00b4d8] flex items-center justify-center shadow-[0_0_15px_rgba(0,229,153,0.35)]">
+              <svg
+                className="w-5 h-5 text-slate-950 font-black fill-current"
+                viewBox="0 0 24 24"
+              >
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+              </svg>
+            </div>
+          )}
           <div className="hidden sm:block">
             <span className="font-black text-base tracking-wider text-white">QUOTEX</span>
             <span className="text-[9px] block text-cyan-400 font-bold -mt-1 tracking-widest">

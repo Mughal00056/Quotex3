@@ -64,7 +64,11 @@ export const QuotexMobileTopBar: React.FC<QuotexMobileTopBarProps> = ({
     customLeaderboardRank,
     setCustomLeaderboardRank,
     candleColorScheme,
-    setCandleColorScheme
+    setCandleColorScheme,
+    logoImageUrl,
+    setLogoImageUrl,
+    backgroundImageUrl,
+    setBackgroundImageUrl
   } = useTrading();
 
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
@@ -727,6 +731,59 @@ export const QuotexMobileTopBar: React.FC<QuotexMobileTopBarProps> = ({
                       }}
                       className="w-full bg-[#0d121c] border border-[#25334a] rounded-lg px-2 py-1 text-white font-mono-num text-xs outline-none"
                     />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 6: Custom Logo Image URL & Background Image URL */}
+              <div className="bg-[#141c2b] border border-[#223049] rounded-xl p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-xs flex items-center gap-1.5">
+                    <Palette className="w-4 h-4 text-cyan-400" />
+                    <span>Logo & Background URL</span>
+                  </span>
+                  <span className="text-[10px] text-cyan-400 font-mono font-bold">Custom URL</span>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-slate-400 block mb-1">Custom Logo Image URL:</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="url"
+                      placeholder="Paste logo image URL..."
+                      value={logoImageUrl}
+                      onChange={(e) => setLogoImageUrl(e.target.value)}
+                      className="flex-1 bg-[#0d121c] border border-[#25334a] rounded-lg px-2.5 py-1.5 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                    />
+                    {logoImageUrl && (
+                      <button
+                        onClick={() => setLogoImageUrl('')}
+                        className="px-2 py-1 rounded bg-[#202b3d] hover:bg-rose-900/50 text-slate-300 hover:text-rose-200 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-slate-400 block mb-1">Custom Background Image URL:</label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="url"
+                      placeholder="Paste background image URL..."
+                      value={backgroundImageUrl}
+                      onChange={(e) => setBackgroundImageUrl(e.target.value)}
+                      className="flex-1 bg-[#0d121c] border border-[#25334a] rounded-lg px-2.5 py-1.5 text-white font-mono text-xs outline-none focus:border-cyan-400"
+                    />
+                    {backgroundImageUrl && (
+                      <button
+                        onClick={() => setBackgroundImageUrl('')}
+                        className="px-2 py-1 rounded bg-[#202b3d] hover:bg-rose-900/50 text-slate-300 hover:text-rose-200 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

@@ -111,6 +111,12 @@ interface TradingContextType {
 
   // Loading state
   isAssetLoading: boolean;
+
+  // Custom Branding (URL configurable by user)
+  logoImageUrl: string;
+  setLogoImageUrl: (url: string) => void;
+  backgroundImageUrl: string;
+  setBackgroundImageUrl: (url: string) => void;
 }
 
 const TradingContext = createContext<TradingContextType | undefined>(undefined);
@@ -133,9 +139,37 @@ const STORAGE_KEYS = {
   CUSTOM_LB_PROFIT: 'quotex_custom_lb_profit',
   CUSTOM_LB_RANK: 'quotex_custom_lb_rank',
   CANDLE_COLOR_SCHEME: 'quotex_candle_color_scheme',
+  LOGO_IMAGE_URL: 'quotex_logo_image_url',
+  BACKGROUND_IMAGE_URL: 'quotex_background_image_url',
 };
 
 export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Custom Branding (Logo & Background URLs)
+  const [logoImageUrl, setLogoImageUrlState] = useState<string>(() => {
+    return localStorage.getItem(STORAGE_KEYS.LOGO_IMAGE_URL) || '';
+  });
+
+  const setLogoImageUrl = useCallback((url: string) => {
+    setLogoImageUrlState(url);
+    if (url) {
+      localStorage.setItem(STORAGE_KEYS.LOGO_IMAGE_URL, url);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.LOGO_IMAGE_URL);
+    }
+  }, []);
+
+  const [backgroundImageUrl, setBackgroundImageUrlState] = useState<string>(() => {
+    return localStorage.getItem(STORAGE_KEYS.BACKGROUND_IMAGE_URL) || '';
+  });
+
+  const setBackgroundImageUrl = useCallback((url: string) => {
+    setBackgroundImageUrlState(url);
+    if (url) {
+      localStorage.setItem(STORAGE_KEYS.BACKGROUND_IMAGE_URL, url);
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.BACKGROUND_IMAGE_URL);
+    }
+  }, []);
   // 1. Account balances (Live starts at $0.00 with money removed as requested, customizable anytime)
   const [accountType, setAccountTypeState] = useState<AccountType>(() => {
     return (localStorage.getItem(STORAGE_KEYS.ACCOUNT_TYPE) as AccountType) || 'DEMO';
@@ -1047,7 +1081,11 @@ export const TradingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         clearAllHistory,
         soundEnabled,
         setSoundEnabled,
-        isAssetLoading
+        isAssetLoading,
+        logoImageUrl,
+        setLogoImageUrl,
+        backgroundImageUrl,
+        setBackgroundImageUrl
       }}
     >
       {children}

@@ -72,7 +72,8 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
     showChartButtons,
     setShowChartButtons,
     lastClosedTrade,
-    clearLastClosedTrade
+    clearLastClosedTrade,
+    backgroundImageUrl
   } = useTrading();
 
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
@@ -1800,6 +1801,12 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
   return (
     <div
       ref={containerRef}
+      style={{
+        backgroundImage: backgroundImageUrl ? `url(${backgroundImageUrl})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
       className={`relative w-full h-full select-none overflow-hidden touch-none ${className || ''}`}
     >
       <canvas
@@ -2094,6 +2101,20 @@ export const ChartCanvas: React.FC<ChartCanvasProps> = ({
             1:1
           </button>
         </div>
+      )}
+
+      {/* Quotex Small Bottom Jump-to-Live Arrow Button ("nicha chota se arrow ho ok fix") */}
+      {panOffset > 0 && (
+        <button
+          onClick={() => setPanOffset(0)}
+          className="absolute right-3.5 bottom-3.5 z-30 w-8 h-8 rounded-full bg-[#131d2b]/95 hover:bg-[#1a293e] border border-cyan-500/50 shadow-xl shadow-black/70 flex items-center justify-center text-cyan-400 hover:text-white transition-all transform hover:scale-110 active:scale-95 cursor-pointer group"
+          title="Return to live chart"
+        >
+          {activeTrades.some((t) => t.assetId === activeAsset.id) && (
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#0a0d14] animate-ping" />
+          )}
+          <ChevronRight className="w-4 h-4 stroke-[3] transition-transform group-hover:translate-x-0.5" />
+        </button>
       )}
 
       {/* Mini Asset Switching Loading Overlay */}
